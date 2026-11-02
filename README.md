@@ -86,6 +86,18 @@ Live at https://deepseek-vs-opencode-go.pages.dev.
 - Neither endpoint is deterministic at `temperature=0`: 31–32% of tasks varied across the
   eight repetitions, so single-sample comparisons are meaningless.
 
+## Privacy check
+
+`scripts/secret-scan.py` walks every blob in the repository history and flags credentials,
+account identifiers, local paths and personal data:
+
+```bash
+python3 scripts/secret-scan.py .
+```
+
+The only matches it reports are the synthetic fixtures used by the tasks (`ana@ejemplo.co`,
+`jorge@ejemplo.co`).
+
 ## License
 
 Code MIT. Data and report CC BY 4.0 — reuse with attribution to Tobon Digital.
