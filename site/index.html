@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DeepSeek API vs OpenCode Go — same model, different latency</title>
+<meta name="description" content="Reproducible A/B test of DeepSeek's direct API against the OpenCode Go relay: 1,176 requests, deterministic grading, quality, latency and cost.">
+<link rel="canonical" href="https://deepseek-vs-opencode-go.pages.dev/">
+<meta property="og:type" content="article">
+<meta property="og:title" content="DeepSeek API vs OpenCode Go: same model, different latency">
+<meta property="og:description" content="1,176 requests, deterministic grading. Quality identical within noise; the relay adds 28% latency and 2.5x on long prompts.">
+<meta property="og:image" content="https://deepseek-vs-opencode-go.pages.dev/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="DeepSeek API vs OpenCode Go: same model, different latency">
+<meta name="twitter:description" content="1,176 requests, deterministic grading. Same weights, same accuracy, higher latency.">
+<meta name="twitter:image" content="https://deepseek-vs-opencode-go.pages.dev/og.png">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<style>
+:root{--bg:#181A1F;--panel:#1C1F26;--line:#2C313B;--fg:#ECEEF2;--muted:#9AA2B1;--accent:#FF5A1F}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:0 22px}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+header{border-bottom:1px solid var(--line);padding:20px 0}
+.brand{display:flex;align-items:center;gap:10px;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.brand i{width:9px;height:9px;border-radius:2px;background:var(--accent);display:inline-block}
+h1{font-size:clamp(30px,5vw,46px);line-height:1.1;letter-spacing:-.02em;margin:44px 0 14px;font-weight:650}
+h1 span{color:var(--accent)}
+.lede{font-size:clamp(17px,2.2vw,20px);color:var(--muted);max-width:44em;margin:0 0 26px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:30px 0 10px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.stat b{display:block;font-size:clamp(20px,5.6vw,26px);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.stat span{font-size:12.5px;color:var(--muted)}
+h2{font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:56px 0 14px}
+p{margin:0 0 14px}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);font-size:14.5px}
+th{color:var(--muted);font-weight:600;font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+td.num,th.num{text-align:right}
+tr:last-child td{border-bottom:none}
+.flat{color:var(--muted)}.up{color:#8fd96b}.down{color:#ff8a6b}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:6px 18px 10px;overflow-x:auto}
+.stat b.pair{white-space:nowrap}
+.bar-row{display:grid;grid-template-columns:190px 1fr 1fr;gap:14px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+.bar-row:last-child{border-bottom:none}
+.bar-label{font-size:14px;color:var(--fg)}
+.bar-track{display:flex;align-items:center;gap:9px}
+.bar{height:10px;border-radius:3px;min-width:2px}
+.delta{display:table-cell}
+.bar.direct{background:var(--fg);opacity:.85}
+.bar.go{background:var(--accent)}
+.bar-track b{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.legend{display:flex;gap:18px;font-size:12.5px;color:var(--muted);margin:4px 0 12px}
+.legend i{width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:6px}
+.note{font-size:13px;color:var(--muted)}
+ul{margin:0 0 14px;padding-left:20px}
+li{margin-bottom:8px}
+.kv{display:grid;grid-template-columns:auto auto;gap:4px 18px;font-size:14px}
+footer{margin:64px 0 40px;padding-top:22px;border-top:1px solid var(--line);color:var(--muted);font-size:13.5px}
+@media(max-width:720px){.stats{grid-template-columns:repeat(2,1fr);gap:10px}.stat{padding:11px 12px}.stat span{font-size:11.5px;line-height:1.35}.stat b.pair{font-size:19px}table{min-width:440px}th{white-space:nowrap}.bar-row{grid-template-columns:1fr;gap:6px}.bar-label{color:var(--muted);font-size:13px}}
+@media(max-width:560px){.delta{display:none}table{min-width:0}td,th{padding:8px 6px;font-size:13.5px}}
+</style>
+</head>
+<body>
+<header><div class="wrap"><div class="brand"><i></i> Tobon Digital · Benchmark</div></div></header>
+<main class="wrap">
+  <h1>DeepSeek&nbsp;API vs OpenCode&nbsp;Go:<br><span>same model, different latency</span></h1>
+  <p class="lede">There is a persistent claim that the OpenCode Go relay serves a worse DeepSeek than the direct API.
+  I tested it: 1,176 requests, deterministic graders, identical prompts. The model behind both endpoints is the same one.
+  What you actually feel is the wire.</p>
+
+  <div class="stats">
+    <div class="stat"><b class="pair">98.6% / 98.8%</b><span>accuracy: direct vs Go, 576 calls each</span></div>
+    <div class="stat"><b>+28%</b><span>median latency on short prompts</span></div>
+    <div class="stat"><b>2.6×</b><span>slower on a 58K-token prompt</span></div>
+    <div class="stat"><b class="pair">$0.15 / $0.60</b><span>per 1M in/out — the rate both bill internally</span></div>
+  </div>
+
+  <h2>What was measured</h2>
+  <p>Two endpoints, one model family: <code>api.deepseek.com/v1</code> with <code>deepseek-flash</code> and
+  <code>opencode.ai/zen/go/v1</code> with <code>deepseek-v4.1-flash</code>. Same prompts, same <code>max_tokens</code>,
+  <code>temperature=0</code>, run eight times per task. Grading is programmatic — numeric answers, parsed JSON,
+  generated code executed against test cases, tool-call arguments inspected — so no model judges another model.</p>
+  <p>72 tasks across seven categories, plus two probes: a 58K-token needle and a 20-tool selection test.
+  A separate logprob probe (one token, <code>top_logprobs=10</code>) fingerprints the engine itself.</p>
+
+  <h2>Quality</h2>
+  <div class="card">
+  <table>
+    <tr><th>Category</th><th class="num">Direct</th><th class="num">OpenCode Go</th><th class="num delta">Δ points</th></tr>
+    <tr><td>Arithmetic</td><td class='num'>99.4%</td><td class='num'>100.0%</td><td class='num delta flat'>+0.6</td></tr>
+<tr><td>Logic</td><td class='num'>100.0%</td><td class='num'>100.0%</td><td class='num delta flat'>+0.0</td></tr>
+<tr><td>Instruction following</td><td class='num'>100.0%</td><td class='num'>100.0%</td><td class='num delta flat'>+0.0</td></tr>
+<tr><td>JSON schema</td><td class='num'>100.0%</td><td class='num'>100.0%</td><td class='num delta flat'>+0.0</td></tr>
+<tr><td>Code generation</td><td class='num'>90.6%</td><td class='num'>92.2%</td><td class='num delta up'>+1.6</td></tr>
+<tr><td>Tool calling</td><td class='num'>100.0%</td><td class='num'>98.8%</td><td class='num delta down'>-1.2</td></tr>
+<tr><td>64K context</td><td class='num'>96.9%</td><td class='num'>96.9%</td><td class='num delta flat'>+0.0</td></tr>
+    <tr><td><strong>All</strong></td><td class="num"><strong>98.6%</strong></td><td class="num"><strong>98.8%</strong></td><td class="num delta flat"><strong>+0.2</strong></td></tr>
+  </table>
+  </div>
+  <p class="note">95% confidence intervals overlap across every category. The difference is inside the noise.</p>
+
+  <h2>The model is the same model</h2>
+  <p>Asking both endpoints for one token with logprobs shows the identical top-1 token on 8 of 9 prompts, a median
+  |Δlogprob| around 1e-5, and 4 of 5 shared tokens in the top-5. Different weights, a different quantization or a
+  different tokenizer would show up here immediately. It does not.</p>
+  <p>What does differ is sampling bookkeeping: neither endpoint is deterministic at <code>temperature=0</code>
+  (31% and 32% of tasks varied across eight repetitions), so anyone comparing single responses is comparing noise.</p>
+
+  <h2>Latency</h2>
+  <div class="legend"><span><i style="background:#ECEEF2"></i>Direct</span><span><i style="background:#FF5A1F"></i>OpenCode Go</span></div>
+  <div class="card"><div class="bar-row"><span class="bar-label">Median, chat</span>
+          <div class="bar-track"><span class="bar direct" style="width:78%"></span><b>1.48s</b></div>
+          <div class="bar-track"><span class="bar go" style="width:100%"></span><b>1.89s</b></div></div>
+<div class="bar-row"><span class="bar-label">p90, chat</span>
+          <div class="bar-track"><span class="bar direct" style="width:68%"></span><b>2.74s</b></div>
+          <div class="bar-track"><span class="bar go" style="width:100%"></span><b>4.04s</b></div></div>
+<div class="bar-row"><span class="bar-label">First token (stream)</span>
+          <div class="bar-track"><span class="bar direct" style="width:47%"></span><b>0.42s</b></div>
+          <div class="bar-track"><span class="bar go" style="width:100%"></span><b>0.89s</b></div></div>
+<div class="bar-row"><span class="bar-label">58K-token prompt</span>
+          <div class="bar-track"><span class="bar direct" style="width:38%"></span><b>2.27s</b></div>
+          <div class="bar-track"><span class="bar go" style="width:100%"></span><b>5.91s</b></div></div></div>
+  <p class="note">Median of all graded calls, plus the streaming probe. Throughput follows the same pattern:
+  140 tok/s direct vs 97 tok/s through the relay.</p>
+  <p>The penalty grows with the prompt. On short chats it is a few hundred milliseconds; at 58K tokens it is
+  three seconds per call. In a long agent session — dozens of calls per task — that is the difference the user
+  actually perceives as "the model got worse".</p>
+
+  <h2>Cost</h2>
+  <p>Both endpoints bill the same internal rate: <strong>$0.15 per million input tokens</strong> (cache miss),
+  <strong>$0.003</strong> (cache hit) and <strong>$0.60 per million output tokens</strong>. The relay's own
+  <code>list_cost</code> field reproduces DeepSeek's off-peak price to the cent. Direct billing doubles during
+  DeepSeek's peak hours; the Go plan is a flat subscription whose usage is deducted at 0.6× that list price.</p>
+  <div class="card">
+  <table>
+    <tr><th>Scenario (typical agent turn: 69K in, 98% cached, 600 out)</th><th class="num">USD / turn</th><th class="num">USD / 1,000 turns</th></tr>
+    <tr><td>Direct, off-peak</td><td class="num">$0.00081</td><td class="num">$0.81</td></tr>
+    <tr><td>Direct, peak (2×)</td><td class="num">$0.00162</td><td class="num">$1.62</td></tr>
+    <tr><td>Go plan, list cost</td><td class="num">$0.00081</td><td class="num">$0.81</td></tr>
+    <tr><td>Go plan, deducted from quota (0.6×)</td><td class="num">$0.00049</td><td class="num">$0.49</td></tr>
+  </table>
+  </div>
+  <p class="note">A $10/month plan breaks even against off-peak pay-as-you-go at roughly
+  12,322 turns per month for this workload.</p>
+
+  <h2>Where the relay really differs</h2>
+  <ul>
+    <li><strong>Prefix cache is tied to the session id.</strong> With a fresh id per request, <code>cached_tokens</code>
+    stays at zero; with a stable one it caches normally (measured: 4,608 of 4,720 tokens). Clients that generate a new
+    session id per call pay full input price every time.</li>
+    <li><strong>Reasoning tokens disappear on <code>/responses</code>.</strong> The relay reports
+    <code>reasoning_tokens: 0</code> while the model clearly reasons; <code>/chat/completions</code> reports them
+    correctly. Answers are identical, accounting is not.</li>
+    <li><strong>Logprobs are partially supported.</strong> Some requests land on a backend that answers
+    <code>400 logprobs are not supported by the cell router yet</code>, and only content logprobs come back.</li>
+    <li><strong>It trims reasoning.</strong> With the same <code>reasoning_effort</code>, Go spends 10–15% fewer
+    reasoning tokens than the direct API — invisible on these tasks, relevant if you rely on deep thinking.</li>
+  </ul>
+
+  <h2>What this does not prove</h2>
+  <p>It does not measure long agentic runs (50+ tool calls, 150K+ context), where relays are known to drop streams or
+  return opaque 400s. That is reliability, not model quality, and it needs its own test. It also does not measure
+  subjective long-form writing: the suite is deliberately deterministic so the result can be checked by anyone.</p>
+
+  <h2>Verdict</h2>
+  <p><strong>If the complaint is "the answers are worse", the data says no: it is the same model with the same
+  accuracy.</strong> If the complaint is "it feels slower", that is real and measurable — +28% on short
+  prompts, 2.6× on 58K-token ones. Choose on latency and cost, not on quality.</p>
+
+  <footer>
+    <p>Run on 2 November 2026 · 1,176 requests · every graded number on this page is recomputed from the raw
+    JSONL published with the code. The streaming speed test, the 58K and 20-tool probes and the logprob
+    fingerprint come from <code>run.py --speed</code>, <code>hard.py</code> and <code>fingerprint.py</code>;
+    rerun those to reproduce them. Benchmark and analysis by Tobon Digital.</p>
+    <p><a href="https://github.com/danieltobon21/deepseek-vs-opencode-go">Source, raw data and reproduction steps →</a></p>
+  </footer>
+</main>
+</body>
+</html>

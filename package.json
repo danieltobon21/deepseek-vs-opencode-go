@@ -1,0 +1,8 @@
+{
+  "name": "deepseek-vs-opencode-go",
+  "private": true,
+  "scripts": {
+    "build": "python3 build.py",
+    "deploy": "npx wrangler pages deploy site --project-name=deepseek-vs-opencode-go"
+  }
+}
